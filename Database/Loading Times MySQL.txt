@@ -1,0 +1,8 @@
+mysql>  load data local infile 'C:\\data\\csv_data\\termdoc_tf.csv' into table T
+erm_TF
+    ->  fields terminated by ';'
+    ->  enclosed by '"'
+    ->  lines terminated by '\n'
+    ->  (term_id, doc_id, tf, tf_norm);
+Query OK, 38271909 rows affected (11 hours 4 min 22.24 sec)
+Records: 38271909  Deleted: 0  Skipped: 0  Warnings: 0

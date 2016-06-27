@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html;charset=utf-8">
+		<title>CA682 - NY Times Visualisation - Marcelo Grossi</title>
+		<script src="jquery-2.1.1.min.js" charset="utf-8"></script>
+		<script src="d3.v3.min.js" charset="utf-8"></script>
+		<script src="d3.layout.cloud.js" charset="utf-8"></script>
+		<script src="categoryCountPanel.js" charset="utf-8"></script>
+		<script src="cloudVisualizationPanel.js" charset="utf-8"></script>
+		<script src="timeChart.js" charset="utf-8"></script>
+		<style>
+			.bar .count_text, .selectedBar .cont_text
+			{
+			    opacity: 0;
+			}
+			/*Note: :active MUST come after :hover (if present) in the CSS definition in order to be effective!*/
+			.bar
+			{
+			    fill: darkgray;
+			}
+			.bar text, .selectedBar text {
+			    fill: lightgray;
+			    font: 8px sans-serif;
+			    font-weight: bold;
+			}
+			.bar:hover > rect, .selectedBar > rect
+			{
+			    fill: orange;
+			    cursor: pointer;
+			}
+			.bar:hover > text, .selectedBar:hover text
+			{
+			    fill: orange;
+			    font-weight: bold;
+			    cursor: pointer;
+			    opacity: 1;
+			}
+			.axis path, .axis line
+			{
+			  fill: none;
+			  stroke: #000;
+			  stroke-width: 1;
+			  shape-rendering: crispEdges;
+			}
+			.axis text
+			{
+			    font: 8px sans-serif;
+			}
+			.brush rect.extent {
+			  	fill: steelblue;
+			  	fill-opacity: .125;
+				shape-rendering: crispEdges;
+			}
+			.brush .resize path {
+			  	fill: #eee;
+			  	stroke: #666;
+			}
+			.cloudText:hover {
+				fill: orange;
+				cursor: pointer;
+			}
+			.colorCat_6 { fill: #f1eef6; }
+			.colorCat_5 { fill: #d0d1e6; }
+			.colorCat_4 { fill: #a6bddb; }
+			.colorCat_3 { fill: #74a9cf; }
+			.colorCat_2 { fill: #2b8cbe; }
+			.colorCat_1 { fill: #045a8d; }
+			.line
+			{
+				clip-path: url(#clip);
+			  	stroke-width: 2;
+			  	stroke: darkgray;
+			  	fill: none;
+			}
+			.area
+			{
+			  	clip-path: url(#clip);
+			  	stroke-width: 0;
+			  	fill-opacity: .3;
+			  	stroke-width: 0;
+				fill: lightgray;
+			}
+			.lineWordChart
+			{
+				clip-path: url(#clip);
+			  	stroke-width: 2;
+			  	stroke: #045a8d;
+			  	fill: none;
+			}
+			.areaWordChart
+			{
+			  	clip-path: url(#clip);
+			  	stroke-width: 0;
+			  	fill-opacity: .3;
+			  	stroke-width: 0;
+				fill: #74a9cf;
+			}
+			.selectedWord span
+			{
+				font: 100px Impact;
+				color: #2b8cbe;
+				font-weight: bold;
+				padding-left: 20px;
+			}
+			.selectedWord span:hover
+			{
+				cursor: pointer;
+			}
+			.searchImage
+			{
+				width: 10px;
+				height: 10px;
+				border-color: #555555; background-color: #555555;
+				margin-top: 4px;
+				padding: 6px 8px;
+			}
+			.expandCollapse
+			{
+				width: 5px;
+				height: 5px;
+				border-color: #555555;
+				background-color: #555555;
+				margin-top: 4px;
+				margin-right: 4px;
+				padding: 2px 2px;
+			}
+			.title
+			{
+				font: 20px Impact;
+				padding-bottom: 5px;
+				margin-left: 25px;
+				color: gray;
+			}
+			.summary
+			{
+				border-top: 2px solid;
+				border-bottom: 2px solid;
+				/* background-color: white; */
+				border-color: darkgray;
+				margin-left: 40px;
+				width: 905px;
+				margin-bottom: 5px;
+			}
+			.summary p
+			{
+				font: 15px Impact;
+				color: darkgray;
+				padding-left: 10px;
+				margin: 5px;
+			}
+			h3
+			{
+				display: block;
+				font-size: 1.17em;
+				padding-left: 40px;
+				-webkit-margin-before: 15px;
+				-webkit-margin-after: 0;
+				-webkit-margin-start: 0px;
+				-webkit-margin-end: 0px;
+				font-weight: bold;
+				font-family: calibri;
+				font-size: 30px;
+				color: gray;
+			}
+		</style>
+	</head>
+	<body>
+		<div style="width: 100%; background-color: black; font-family: Verdana; font-size: 12px; color: white;">
+			<table style="margin: 0 auto;">
+				<!--<tr><td><input type="image" src="plus_sign.png" title="Expand/Collapse" class="expandCollapse" id="expandCollapseBtn">Summary and findings<td></tr>
+				<tr id="summaryRow" style="display:none"><td>-->
+				<td style="width: 1px">Interval:</td><td style="width: 170px" id="filterDateSummary">N/A</td>
+				<td style="width: 1px">Categories:</td><td id="filterCatSummary">N/A</td>
+				<td style="width: 1px">#Articles:</td><td style="width: 50px" id="filterArtNbSummary">N/A</td>
+				<td style="width: 90px">#Cloud Words:</td><td id="filterWordCloudSummary">N/A</td>
+				<td style="width: 1px">#Selected:</td><td id="filterWordAppearSummary">N/A</td>
+				<td style="width: 1px">Findings:</td>
+				<td id="findingsSummary">
+						<select id="selectFindings" onchange="selectFinding(this);">
+						</select>
+				</td>
+			</table>
+		</div>
+		<div style="width: 960px; margin: 0 auto">
+			<div id="categoryCloudDiv" style="display:block">
+				<div><h3>Number of news articles per category:</h3></div>
+				<div id="categoryDiv"></div>
+				<div id="wordCloudDiv"></div>
+			</div>
+			<div id="wordSearchDiv" style="display:none">
+				<div style="float:left; width:740px" class="selectedWord"><span id="wordTitle"></span></div>
+				<div style="float:left" class="searchBox">
+					<table style="margin-top: 20px">
+						<tr>
+							<td><input type="text" name="searchTerm" id="searchBox"></td>
+							<td><input type="image" src="search_box_icon.png" title="search" class="searchImage" id="searchBtn"></td>
+						</tr>
+					</table>
+				</div>
+				<div style="width: 940px; overflow-y: auto; clear: both;"><h3 style="padding-left: 25px;-webkit-margin-before: 0px;">Word occurences in time interval:</h3></div>
+				<div id="wordSearchResultsDiv" style="width: 940px; height: 420px; overflow-y: auto; clear: both; margin-bottom: 10px;"></div>
+			</div>
+			<div><h3>Number of news articles per date:</h3></div>
+			<div id="timeZoomDiv"></div>
+			<div id="timeSliderDiv"></div>
+		</div>
+  		<script>
+			Date.prototype.toStringYMD = function() {
+			    var yyyy = this.getFullYear().toString();
+			    var mm = (this.getMonth() + 1).toString(); // getMonth() is zero-based
+			    var dd = this.getDate().toString();
+			    return yyyy + '-' + (mm[1] ? mm : "0" + mm[0]) + '-' + (dd[1] ? dd : "0" + dd[0]);
+			};
+
+			Date.prototype.toStringDMY = function() {
+			    var yyyy = this.getFullYear().toString();
+			    var mm = (this.getMonth() + 1).toString(); // getMonth() is zero-based
+			    var dd = this.getDate().toString();
+			    return (dd[1] ? dd : "0" + dd[0]) + '/' + (mm[1] ? mm : "0" + mm[0]) + '/' + yyyy;
+			};
+
+			Date.prototype.addDay = function(days) {
+				return this.setTime(this.getTime() + days * 86400000);
+			};
+
+  			var totDocs = 0, totWordCount = 0;
+  			var intervalRange = [], fullIntervalRange = [];
+			var selectedCategories = [];
+			var mode = "cloud"; // "cloud" or "word"
+			var selectedWord = "";
+
+			var wordCharts = [];
+			var catChart = new CategoryChart().width(960).height(150).margin({ top: 70, right: 15, bottom: 10, left: 40 }).on("selected", onSelectCategory);
+  			var wordCloud = new WordCloud().width(960).height(320).maxWords(50).on("click", onWordClicked).on("cloudend", updateSummary);
+  			var zoomedTime = new TimeSeriesChart().width(960).height(150).margin({top: 5, right: 15, bottom: 20, left: 40}).showBrush(false);
+  			var sliderTime = new TimeSeriesChart().width(960).height(75).margin({top: 5, right: 15, bottom: 20, left: 40}).showYAxis(false).on("brush", onBrush).on("brushend", onBrushEnd);
+
+				// http://localhost:5000/api/v1.0/TopWords?startdate=20140305&enddate=20140321&categories=54
+	  			//selectedCategories = [{ category: "World", count: 0, id: 54 }];
+	  			//intervalRange = [new Date("2014-03-05"), new Date("2014-03-21")];
+	  		var findings = [
+	  				{ title: "Select a finding" },
+	  				{ title: "Brazil World Cup 2014", interval: [new Date("2014-06-12"), new Date("2014-07-13")], categories: [{ category: "Sports", count: 0, id: 43 }] },
+	  				{ title: "Comcast and Martoma", interval: [new Date("2014-02-03"), new Date("2014-02-19")], categories: [{ category: "Business", count: 0, id: 10 }] },
+	  				{ title: "George Zimmerman", interval: [new Date("2013-06-27"), new Date("2013-08-17")], categories: [{ category: "US", count: 0, id: 53 }] },
+	  			];
+
+  			d3.select("#wordTitle").on("click", function () { changeMode("cloud"); })
+  			d3.select("#searchBtn").on("click", function () { doSearch(); });
+  			d3.select("#expandCollapseBtn").on("click", function () { toggleSummary(); });
+  			$("#searchBox").bind("keypress", {}, function (e) { if ((e.keyCode ? e.keyCode : e.which) == 13) { e.preventDefault(); doSearch(); } });
+
+  			function buildFindings()
+  			{
+  				d3.select("#selectFindings").selectAll("option").data(findings).enter().append("option").html(function (d) { return d.title; })
+  					.attr("value", function(d, i) { return i; });
+  			}
+
+  			function selectFinding(select)
+  			{
+  				var index = select.options[select.selectedIndex].value;
+  				if (findings[index].interval && findings[index].categories)
+  					loadFinding (findings[index].interval, findings[index].categories);
+  			}
+
+  			function updateSummary()
+  			{
+  				d3.select("#filterDateSummary").html(intervalRange[0].toStringDMY() + " to " + intervalRange[1].toStringDMY());
+				d3.select("#filterCatSummary").html((selectedCategories.length == 0 ? "none" : selectedCategories.map(function(c) { return c.category }).join(", ")));
+				d3.select("#filterArtNbSummary").html(totDocs);
+				d3.select("#filterWordCloudSummary").html(wordCloud.wordsShowing());
+				d3.select("#filterWordAppearSummary").html(totWordCount);
+  			}
+
+  			function doSearch()
+  			{
+  				var word = $('#searchBox').val();
+				searchWord(word);
+				$('#searchBox').val("");
+  			}
+
+			function changeMode (newMode) {
+				mode = newMode;
+
+				var show = d3.select(mode == "cloud" ? "#categoryCloudDiv" : "#wordSearchDiv");
+				var hide = d3.select(mode == "cloud" ? "#wordSearchDiv" : "#categoryCloudDiv");
+
+				show.style("display", "block");
+				hide.style("display", "none");
+
+				updateSummary();
+			}
+
+			function loadFinding (timeInterval, categories)
+			{
+  				intervalRange = timeInterval;
+  				selectedCategories = categories;
+  				sliderTime.brushExtent(intervalRange);
+  				updateSummary();
+			}
+
+  			function onWordClicked (word)
+  			{
+  				searchWord(word);
+				setTimeout(function() { changeMode("word"); }, 10);
+  			}
+
+  			function searchWord(word)
+  			{
+  				selectedWord = word;
+  				d3.select(".selectedWord").select("span").html(selectedWord);
+  				// Get data for the new term
+				$.getJSON("api/v1.0/CategoryCountPerTerm?term=" + selectedWord + "&startdate=" + fullIntervalRange[0].toStringYMD() + "&enddate=" + fullIntervalRange[1].toStringYMD(), function(data) {
+					setTimeout(function() { updateSearchWord(data['result']); }, 100);
+					updateSummary();
+				});
+  			}
+
+  			function fixArray(array)
+  			{
+  				return array.map(function (c) { c.date = new Date (c.date); return c; });
+  			}
+
+  			function updateSearchWord(data)
+  			{
+  				// Remove previous results the easy way
+  				d3.select("#wordSearchResultsDiv").select("table").remove();
+
+  				if (data.length == 0)
+  					return;
+
+  				// [{ name: <value>, counts: [{date: <value>, count: <value>}, ..], ..]
+  				// For all category data transform from string to date and fill in missing days with count = 0
+  				for (var i = 0; i < data.length; i++)
+  					data[i].counts = fixArray(data[i].counts);
+
+  				// Make the overall array (sum of all others)
+  				totWordCount = 0;
+  				var overall = { name: "Overall", counts: data[0].counts.map(function(c) { return { date: new Date(c.date), count: c.count }; }) };
+  				for (var o = 0; o < overall.counts.length; o++)
+  					for (var i = 1; i < data.length; i++)
+  					{
+  						totWordCount += data[i].counts[o].count;
+  						overall.counts[o].count += data[i].counts[o].count;
+  					}
+
+  				// Now insert the overall as the data[0]
+  				data.splice(0, 0, overall);
+  				
+  				// Create all the chart place holders and charts
+  				var i = 0;
+  				var d = d3.select("#wordSearchResultsDiv").append("table");
+  				while (i < data.length)
+  				{
+  					// The overall chart
+  					if (i == 0)
+  					{
+  						var row = d.append("tr");
+  						var margin = { top: 5, right: 15, bottom: 20, left: 30 };
+  						var cell = row.append("td").attr("colspan", 2);
+	  					wordCharts[i] = new TimeSeriesChart().width(900).height(100).margin(margin).showBrush(false).lineClass("lineWordChart").areaClass("areaWordChart").domain(intervalRange);
+	  					cell.append("div").attr("class", "title").html(data[i].name);
+	  					cell.datum(data[i].counts).call(wordCharts[i]);
+  					}
+  					// The specific category charts
+  					else
+  					{
+	  					var row = d.append("tr");
+	  					// First chart of the row
+	  					var cell = row.append("td");
+	  					wordCharts[i] = new TimeSeriesChart().width(450).height(100).margin(margin).showBrush(false).lineClass("lineWordChart").areaClass("areaWordChart").domain(intervalRange);
+	  					cell.append("div").attr("class", "title").html(data[i].name);				
+	  					cell.datum(data[i].counts).call(wordCharts[i]);
+	  					// Second chart of the row
+	  					i++;
+	  					cell = row.append("td");
+	  					if (i < data.length)
+	  					{  						
+	  						wordCharts[i] = new TimeSeriesChart().width(450).height(100).margin(margin).showBrush(false).lineClass("lineWordChart").areaClass("areaWordChart").domain(intervalRange);
+	  						cell.append("div").attr("class", "title").html(data[i].name);
+	  						cell.datum(data[i].counts).call(wordCharts[i]);
+	  					}
+  					}
+  					i++;
+  				}
+  				updateSummary();
+  			}
+
+  			function onSelectCategory (categories)
+  			{
+  				selectedCategories = categories;
+  				setTimeout(updateWordCloud, 10);
+  			}
+
+  			function onBrush(range)
+  			{
+  				zoomedTime.domain(range);
+  				if (mode == "word")
+  					for (var i = 0; i < wordCharts.length; i++)
+  						wordCharts[i].domain(range);
+  			}
+
+  			function onBrushEnd(range)
+  			{
+  				intervalRange = range;
+  				if (mode == "cloud")
+  				{
+  					setTimeout(updateCategory, 10);
+  					setTimeout(updateWordCloud, 10);
+  				}
+  				updateSummary();
+  			}
+
+  			function updateCategory()
+  			{
+  				// Get the counts by category
+	  			$.getJSON("api/v1.0/CountPerCategory?startdate=" + intervalRange[0].toStringYMD() + "&enddate=" + intervalRange[1].toStringYMD(), function(data) {
+					d3.select("#categoryDiv")
+	    				.datum(data['result'])
+	    				.call(catChart);
+	  			});
+  			}
+
+  			function updateWordCloud()
+  			{
+  				var api = "api/v1.0/TopWords?startdate=" + intervalRange[0].toStringYMD() + "&enddate=" + intervalRange[1].toStringYMD();
+  				if (selectedCategories.length > 0)
+  					api += "&categories=" + selectedCategories.map(function (c) { return c.id; }).join(",");
+	  			// Get the world cloud
+	  			$.getJSON(api, function(data) {
+	  				totDocs = +data['result'].tot_docs;	  				
+	  				d3.select("#wordCloudDiv")
+	  					.datum(data['result'].terms)
+	  					.call(wordCloud);
+	  				updateSummary();
+	  			});
+  			}
+
+  			// Build the findings combobox
+  			buildFindings();
+
+  			// Get start data to populate the time chart
+			$.getJSON( "api/v1.0/dates", function(data) {
+	  			dateInterval = data['result'];
+	  			fullIntervalRange = [new Date(dateInterval["min_date"]), new Date(dateInterval["max_date"])];
+				// Get the daily counts from the database
+	  			$.getJSON("api/v1.0/CountPerDate?startdate=" + dateInterval["min_date"] + "&enddate=" + dateInterval["max_date"], function(data) {
+	  				data = data['result'].map (function (obj) { obj.date = new Date (obj.date); return obj; })
+						  	   .sort(function (d1, d2) { return d1.date - d2.date; }); // by Date;
+	  				d3.select("#timeZoomDiv")
+	  					.datum(data)
+	  					.call(zoomedTime);
+	  				d3.select("#timeSliderDiv")
+	  					.datum(data)
+	  					.call(sliderTime);
+	  			});
+	  			// Update the world cloud and category count
+	  			onBrushEnd(fullIntervalRange);	  			
+			});
+
+  			/* Not needed anymore - done directly in SQL
+  			function addInterval(arr, start, end)
+  			{
+  				for (var d = new Date(start); d <= end; d.addDay(1))
+  					arr.push({ date: new Date(d), count: 0 });
+  			} 			
+
+  			function fillDates(incomleteArray)
+  			{
+  				var arr = [];
+  				var start = fullIntervalRange[0],
+  					end = fullIntervalRange[1];
+  				if (incomleteArray.length > 0)
+  				{
+  					incomleteArray = incomleteArray.map(function (c) { c.date = new Date (c.date); return c; });
+  					// Add days before the beginning
+  					if (incomleteArray[0].date > start)
+  						addInterval(arr, start, incomleteArray[0].date.addDay(-1));
+  					// Add days in between
+  					for (var i = 1; i < incomleteArray.length; i++)
+  						if (incomleteArray[i - 1].date.addDay(1) < incomleteArray[i].date)
+  							addInterval(arr, incomleteArray[i - 1].date.addDay(1), incomleteArray[i].date.addDay(-1));
+  					// Add days after the end
+  					if (incomleteArray[incomleteArray.length - 1].date < end)
+  						addInterval(arr, incomleteArray[incomleteArray.length - 1].date.addDay(1), end);
+  					// Sort the output array
+  					return incomleteArray.concat(arr).sort(function (d1, d2) { return d1.date - d2.date; });
+				}
+				else
+				{
+					// Fill all with zeros and return
+					addInterval(arr, start, end);
+  					return arr;
+				}
+  			}*/			
+   		</script>
+	</body>
+</html>
